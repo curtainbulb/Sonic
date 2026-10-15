@@ -6,1538 +6,783 @@
 <title>SONICFIELD</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
 <style>
-/* ── RESET & ROOT ─────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
 :root {
-  --bg:        #0a0a0f;
-  --text:      #ddd8cc;
-  --dim:       #7a7468;
-  --heard:     #b8955a;
-  --heard-dim: #6b5430;
-  --search-bg: #141420;
-  --mono: 'DM Mono', monospace;
-  --sans: 'DM Sans', sans-serif;
-  /* residual strip colours per depth, cycling */
-  --strip-0: #1a1a3a;
-  --strip-1: #1a2a1a;
-  --strip-2: #2a1a1a;
-  --strip-3: #1a2820;
-  --strip-4: #22182a;
-  --strip-h: 44px; /* strip height/width */
-  --transition: 160ms ease-out;
-}
-
-html, body {
-  width: 100%; height: 100%;
-  overflow: hidden;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--sans);
-  font-size: 15px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-}
-
-/* ── LAYER STACK SYSTEM ───────────────────────────────────── */
-/*
-  The metaphor: each navigation level is a full-viewport layer.
-  Opening a node peels the current layer away (clip-path) to reveal next.
-  A thin residual strip of every ancestor remains at the top edge.
-  The layer stack is the hierarchy — depth IS position in z-order.
-*/
-
-#app {
-  position: fixed;
-  inset: 0;
-  overflow: hidden;
-  /* safe area for phones */
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-.layer {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg);
-  will-change: clip-path;
-  /* layers slide in from below using clip-path */
-}
-
-.layer.entering {
-  animation: layerReveal var(--transition) ease-out forwards;
-}
-
-.layer.leaving {
-  animation: layerHide var(--transition) ease-out forwards;
-}
-
-@keyframes layerReveal {
-  from { clip-path: inset(100% 0 0 0); }
-  to   { clip-path: inset(0% 0 0 0); }
-}
-@keyframes layerHide {
-  from { clip-path: inset(0% 0 0 0); }
-  to   { clip-path: inset(0% 0 100% 0); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .layer.entering, .layer.leaving { animation: none !important; }
-}
-
-/* ── RESIDUAL STRIPS (ancestor path) ─────────────────────── */
-/* strips are stacked at top, each showing what layer is below them */
-.strips {
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  display: flex;
-  flex-direction: column;
-  z-index: 200;
-  pointer-events: none;
-}
-
-.strip {
-  height: var(--strip-h);
-  display: flex;
-  align-items: center;
-  padding: 0 16px;
-  cursor: pointer;
-  pointer-events: all;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  color: var(--dim);
-  transition: color var(--transition), background var(--transition);
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  gap: 10px;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.strip:hover { color: var(--text); }
-.strip:focus-visible { outline: 2px solid var(--heard); outline-offset: -2px; }
-
-.strip .strip-depth {
-  font-size: 9px;
-  color: var(--heard-dim);
-  min-width: 16px;
-}
-
-.strip .strip-label {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.strip .strip-back {
-  font-size: 11px;
-  color: var(--heard-dim);
-  flex-shrink: 0;
-}
-
-/* ── LAYER CONTENT AREA ───────────────────────────────────── */
-.layer-content {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-/* ── LAYER HEADER ─────────────────────────────────────────── */
-.layer-header {
-  flex-shrink: 0;
-  padding: 20px 24px 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
-  background: var(--bg);
-  position: relative;
-  z-index: 10;
-}
-
-.layer-header .genre-eyebrow {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  color: var(--heard);
-  margin-bottom: 4px;
-  opacity: 0.8;
-}
-
-.layer-header h1 {
-  font-family: var(--mono);
-  font-size: clamp(18px, 3vw, 26px);
-  font-weight: 400;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-  color: var(--text);
-}
-
-.layer-header .layer-note {
-  margin-top: 6px;
-  font-family: var(--sans);
-  font-size: 13px;
-  color: var(--dim);
-  font-style: italic;
-  line-height: 1.4;
-}
-
-.layer-header .layer-meta {
-  margin-top: 8px;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--dim);
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.layer-meta .heard-count { color: var(--heard); }
-
-/* ── SEARCH BAR ───────────────────────────────────────────── */
-.search-container {
-  flex-shrink: 0;
-  padding: 10px 24px;
-  background: var(--bg);
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-}
-
-.search-wrap {
-  position: relative;
-  max-width: 560px;
-}
-
-.search-wrap input {
-  width: 100%;
-  background: var(--search-bg);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 2px;
-  color: var(--text);
-  font-family: var(--mono);
-  font-size: 13px;
-  padding: 8px 36px 8px 12px;
-  outline: none;
-  transition: border-color var(--transition);
-}
-
-.search-wrap input:focus {
-  border-color: rgba(184,149,90,0.4);
-}
-
-.search-wrap input::placeholder { color: var(--dim); }
-
-.search-clear {
-  position: absolute;
-  right: 10px; top: 50%;
-  transform: translateY(-50%);
-  background: none; border: none;
-  color: var(--dim);
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
-  padding: 2px 4px;
-  display: none;
-}
-
-.search-clear.visible { display: block; }
-.search-clear:hover { color: var(--text); }
-
-/* ── SCROLL VIEWPORT ──────────────────────────────────────── */
-.scroll-viewport {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-  /* pad for reduced-motion / search results */
-  padding-bottom: 40px;
-}
-
-/* ── GENRE GRID (root layer) ─────────────────────────────── */
-.genre-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
-  padding: 24px;
-  gap: 1px;
-  background: rgba(255,255,255,0.05);
-}
-
-.genre-cell {
-  background: var(--bg);
-  padding: 20px 20px 16px;
-  cursor: pointer;
-  transition: background var(--transition);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-height: 100px;
-  position: relative;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.genre-cell:hover,
-.genre-cell:focus-visible {
-  background: #111118;
-  outline: none;
-}
-
-.genre-cell:focus-visible {
-  box-shadow: inset 0 0 0 2px var(--heard);
-}
-
-.genre-cell .gc-name {
-  font-family: var(--mono);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text);
-  letter-spacing: -0.01em;
-  line-height: 1.3;
-}
-
-.genre-cell .gc-sub-count {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--dim);
-}
-
-.genre-cell .gc-album-count {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--dim);
-  margin-top: auto;
-}
-
-.genre-cell .gc-heard-bar {
-  height: 2px;
-  background: rgba(255,255,255,0.08);
-  border-radius: 1px;
-  overflow: hidden;
-  margin-top: 4px;
-}
-
-.genre-cell .gc-heard-bar-fill {
-  height: 100%;
-  background: var(--heard);
-  border-radius: 1px;
-  transition: width 0.4s ease;
-}
-
-/* ── SUBCATEGORY LIST (genre layer) ──────────────────────── */
-.subcat-list {
-  padding: 20px 0;
-}
-
-.subcat-item {
-  padding: 16px 24px;
-  cursor: pointer;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 12px;
-  align-items: start;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-  transition: background var(--transition);
-  -webkit-tap-highlight-color: transparent;
-}
-
-.subcat-item:hover,
-.subcat-item:focus-visible {
-  background: #0f0f1a;
-  outline: none;
-}
-
-.subcat-item:focus-visible {
-  box-shadow: inset 0 0 0 2px var(--heard);
-}
-
-.subcat-item .si-name {
-  font-family: var(--mono);
-  font-size: 14px;
-  font-weight: 400;
-  color: var(--text);
-  line-height: 1.3;
-}
-
-.subcat-item .si-note {
-  font-family: var(--sans);
-  font-size: 12px;
-  color: var(--dim);
-  font-style: italic;
-  margin-top: 4px;
-  line-height: 1.4;
-}
-
-.subcat-item .si-right {
-  text-align: right;
-  flex-shrink: 0;
-}
-
-.subcat-item .si-count {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--dim);
-}
-
-.subcat-item .si-heard-frac {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--heard-dim);
-  margin-top: 2px;
-}
-
-/* ── ALBUM LIST (subcat layer) ───────────────────────────── */
-.album-list {
-  padding: 12px 0 40px;
-}
-
-/* Virtual scroll container */
-.album-virtual-wrap {
-  position: relative;
-  /* height set by JS */
-}
-
-.album-row {
-  position: absolute;
-  left: 0; right: 0;
-  display: grid;
-  grid-template-columns: 56px 1fr auto;
-  gap: 0 12px;
-  align-items: center;
-  padding: 0 24px;
-  height: 64px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-  cursor: default;
-  transition: background var(--transition);
-}
-
-.album-row:hover { background: #0e0e18; }
-
-.album-row.heard { --row-text: var(--dim); }
-.album-row:not(.heard) { --row-text: var(--text); }
-
-/* Album art thumbnail */
-.album-art {
-  width: 48px;
-  height: 48px;
-  flex-shrink: 0;
-  background: #1a1a28;
-  position: relative;
-  overflow: hidden;
-  border-radius: 1px;
-}
-
-.album-art img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-
-.album-art img.loaded { opacity: 1; }
-
-.album-art-fallback {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--mono);
-  font-size: 9px;
-  color: var(--dim);
-  text-align: center;
-  padding: 4px;
-  line-height: 1.2;
-}
-
-/* Heard toggle over art */
-.heard-toggle {
-  position: absolute;
-  inset: 0;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.heard-toggle::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,0.5);
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.album-row:hover .heard-toggle::after { opacity: 1; }
-.album-row.heard .album-art { background: #1f1a10; }
-
-.heard-toggle .ht-icon {
-  position: relative;
-  z-index: 3;
-  font-size: 18px;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.album-row:hover .heard-toggle .ht-icon { opacity: 1; }
-.album-row.heard .heard-toggle .ht-icon { opacity: 1; color: var(--heard); }
-
-.heard-toggle:focus-visible {
-  outline: 2px solid var(--heard);
-  outline-offset: 2px;
-}
-
-/* Album info */
-.album-info {
-  min-width: 0;
-}
-
-.album-info .ai-title {
-  font-family: var(--sans);
-  font-size: 14px;
-  font-weight: 400;
-  color: var(--row-text, var(--text));
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.3;
-  transition: color var(--transition);
-}
-
-.album-row.heard .ai-title { text-decoration: line-through; text-decoration-color: var(--heard-dim); }
-
-.album-info .ai-artist {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--dim);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-top: 1px;
-}
-
-/* Year & Apple link */
-.album-right {
-  text-align: right;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-}
-
-.album-year {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--dim);
-}
-
-.apple-link {
-  display: inline-block;
-  font-family: var(--mono);
-  font-size: 9px;
-  color: var(--heard-dim);
-  text-decoration: none;
-  letter-spacing: 0.05em;
-  opacity: 0;
-  transition: opacity 0.15s, color 0.15s;
-}
-
-.album-row:hover .apple-link { opacity: 1; }
-.apple-link:hover { color: var(--heard); }
-.apple-link:focus-visible { opacity: 1; outline: 1px solid var(--heard); }
-
-/* ── SEARCH RESULTS OVERLAY ───────────────────────────────── */
-#search-overlay {
-  position: absolute;
-  inset: 0;
-  background: var(--bg);
-  z-index: 1000;
-  display: flex;
-  flex-direction: column;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--transition);
-}
-
-#search-overlay.active {
-  opacity: 1;
-  pointer-events: all;
-}
-
-.search-results-header {
-  padding: 16px 24px;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--dim);
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  flex-shrink: 0;
-}
-
-.search-results-scroll {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: contain;
-}
-
-.search-result-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 12px;
-  padding: 12px 24px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-  cursor: pointer;
-  transition: background var(--transition);
-}
-
-.search-result-row:hover,
-.search-result-row:focus-visible {
-  background: #0f0f1a;
-  outline: none;
-}
-
-.sr-title {
-  font-family: var(--sans);
-  font-size: 14px;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sr-artist {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--dim);
-  margin-top: 1px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sr-cat {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--heard-dim);
-  text-align: right;
-  flex-shrink: 0;
-  max-width: 140px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sr-year {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--dim);
-  text-align: right;
-  margin-top: 1px;
-}
-
-.search-result-row.heard .sr-title {
-  color: var(--dim);
-  text-decoration: line-through;
-  text-decoration-color: var(--heard-dim);
-}
-
-/* heard dot */
-.sr-heard-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--heard);
-  display: inline-block;
-  margin-left: 6px;
-  vertical-align: middle;
-  flex-shrink: 0;
-}
-
-/* ── UNPARSED LINES NOTICE ───────────────────────────────── */
-#unparsed-notice {
-  position: fixed;
-  bottom: 20px; right: 20px;
-  background: #2a1010;
-  border: 1px solid #5a2020;
-  color: #ff9090;
-  font-family: var(--mono);
-  font-size: 11px;
-  padding: 10px 14px;
-  border-radius: 2px;
-  max-width: 320px;
-  z-index: 9999;
-  display: none;
-}
-
-#unparsed-notice.visible { display: block; }
-
-/* ── NO RESULTS ──────────────────────────────────────────── */
-.no-results {
-  padding: 48px 24px;
-  font-family: var(--mono);
-  font-size: 13px;
-  color: var(--dim);
-  text-align: center;
-}
-
-/* ── SCROLLBAR ───────────────────────────────────────────── */
-.scroll-viewport::-webkit-scrollbar,
-.search-results-scroll::-webkit-scrollbar { width: 3px; }
-.scroll-viewport::-webkit-scrollbar-track,
-.search-results-scroll::-webkit-scrollbar-track { background: transparent; }
-.scroll-viewport::-webkit-scrollbar-thumb,
-.search-results-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
-
-/* ── RESPONSIVE ──────────────────────────────────────────── */
-@media (max-width: 600px) {
-  .layer-header { padding: 16px 16px 12px; }
-  .genre-grid { padding: 12px; gap: 1px; }
-  .genre-cell { padding: 14px 14px 12px; min-height: 80px; }
-  .subcat-item { padding: 14px 16px; }
-  .album-row { padding: 0 16px; height: 60px; grid-template-columns: 48px 1fr auto; }
-  .album-art { width: 44px; height: 44px; }
-  .search-container { padding: 8px 16px; }
-  .album-info .ai-title { font-size: 13px; }
-}
-
-@media (min-width: 1200px) {
-  .album-row { height: 68px; }
-  .album-art { width: 52px; height: 52px; }
-}
-
-/* ── KEYBOARD FOCUS ──────────────────────────────────────── */
-:focus:not(:focus-visible) { outline: none; }
+  --white:   #f5f2ec;
+  --black:   #0c0c0c;
+  --acid:    #c8ff00;
+  --red:     #ff2d20;
+  --heard:   #c8ff00;
+  --dim:     #888;
+  --mid:     #333;
+  --border:  rgba(12,12,12,0.12);
+  --grotesk: 'Space Grotesk', sans-serif;
+  --serif:   'Playfair Display', serif;
+  --strip-h: 40px;
+  --ease: 140ms cubic-bezier(0.22,1,0.36,1);
+}
+
+html,body{width:100%;height:100%;overflow:hidden;background:var(--white);color:var(--black);font-family:var(--grotesk);-webkit-font-smoothing:antialiased}
+
+/* ── APP SHELL ── */
+#app{position:fixed;inset:0;overflow:hidden;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+
+/* ── LAYER SYSTEM ── */
+.layer{position:absolute;inset:0;background:var(--white);display:flex;flex-direction:column;will-change:clip-path}
+.layer.entering{animation:reveal var(--ease) forwards}
+.layer.leaving{animation:hide var(--ease) forwards}
+@keyframes reveal{from{clip-path:inset(100% 0 0 0)}to{clip-path:inset(0% 0 0 0)}}
+@keyframes hide{from{clip-path:inset(0% 0 0 0)}to{clip-path:inset(0% 0 100% 0)}}
+@media(prefers-reduced-motion:reduce){.layer.entering,.layer.leaving{animation:none!important}}
+
+#layer-host{position:absolute;inset:0}
+
+/* ── STRIPS (ancestor path as tape markers) ── */
+.strips{position:absolute;top:0;left:0;right:0;z-index:200;pointer-events:none}
+.strip{
+  height:var(--strip-h);
+  display:flex;align-items:center;
+  padding:0 20px;
+  cursor:pointer;pointer-events:all;
+  font-family:var(--grotesk);font-size:11px;font-weight:600;
+  letter-spacing:0.08em;text-transform:uppercase;
+  color:var(--black);
+  border-bottom:2px solid var(--black);
+  gap:12px;
+  user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  transition:background var(--ease);
+  position:relative;
+}
+.strip:hover{background:var(--acid)}
+.strip:focus-visible{outline:2px solid var(--red);outline-offset:-2px}
+.strip-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.strip-arrow{font-size:14px;opacity:0.5}
+/* strip background colors cycling */
+.strip[data-depth="0"]{background:var(--white)}
+.strip[data-depth="1"]{background:#e8e4dc}
+.strip[data-depth="2"]{background:#ddd8cf}
+.strip[data-depth="3"]{background:#d2cdc4}
+
+/* ── LAYER CONTENT ── */
+.layer-content{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── HEADER ── */
+.layer-header{
+  flex-shrink:0;
+  padding:28px 32px 20px;
+  border-bottom:2px solid var(--black);
+  position:relative;z-index:10;background:var(--white);
+}
+.genre-eyebrow{
+  font-family:var(--grotesk);font-size:10px;font-weight:700;
+  letter-spacing:0.15em;text-transform:uppercase;
+  color:var(--dim);margin-bottom:6px;
+}
+.layer-header h1{
+  font-family:var(--grotesk);font-weight:700;
+  font-size:clamp(22px,3.5vw,42px);
+  letter-spacing:-0.03em;line-height:1;
+  color:var(--black);
+}
+.layer-note{
+  margin-top:8px;font-family:var(--serif);font-size:14px;font-style:italic;
+  color:var(--mid);line-height:1.45;max-width:640px;
+}
+.layer-meta{
+  margin-top:10px;display:flex;gap:20px;flex-wrap:wrap;
+  font-family:var(--grotesk);font-size:11px;font-weight:500;letter-spacing:0.04em;
+  color:var(--dim);
+}
+.layer-meta .heard-ct{color:var(--black);background:var(--acid);padding:1px 6px;border-radius:2px;font-weight:700}
+
+/* ── SEARCH ── */
+.search-container{
+  flex-shrink:0;padding:12px 32px;
+  border-bottom:1px solid var(--border);background:var(--white);
+}
+.search-wrap{position:relative;max-width:480px}
+.search-wrap input{
+  width:100%;background:transparent;
+  border:none;border-bottom:2px solid var(--black);
+  color:var(--black);font-family:var(--grotesk);font-size:14px;font-weight:500;
+  padding:6px 32px 6px 0;outline:none;
+  transition:border-color var(--ease);
+  border-radius:0;
+}
+.search-wrap input::placeholder{color:var(--dim)}
+.search-wrap input:focus{border-bottom-color:var(--red)}
+.search-clear{
+  position:absolute;right:0;top:50%;transform:translateY(-50%);
+  background:none;border:none;color:var(--dim);cursor:pointer;
+  font-size:18px;line-height:1;padding:2px 4px;display:none;
+}
+.search-clear.visible{display:block}
+.search-clear:hover{color:var(--black)}
+
+/* ── SCROLL AREA ── */
+.scroll-viewport{
+  flex:1;overflow-y:auto;overflow-x:hidden;
+  overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+}
+.scroll-viewport::-webkit-scrollbar{width:3px}
+.scroll-viewport::-webkit-scrollbar-track{background:transparent}
+.scroll-viewport::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.15);border-radius:2px}
+
+/* ── GENRE GRID (root) ── */
+.genre-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));
+  border-top:1px solid var(--border);
+}
+.genre-cell{
+  padding:24px 28px 20px;
+  border-right:1px solid var(--border);border-bottom:1px solid var(--border);
+  cursor:pointer;transition:background var(--ease);
+  display:flex;flex-direction:column;gap:8px;
+  min-height:120px;
+  -webkit-tap-highlight-color:transparent;
+  position:relative;
+}
+.genre-cell::after{
+  content:'→';position:absolute;right:20px;top:24px;
+  font-size:18px;color:var(--border);transition:color var(--ease),right var(--ease);
+}
+.genre-cell:hover{background:#f0ece4}
+.genre-cell:hover::after{color:var(--black);right:16px}
+.genre-cell:focus-visible{outline:none;box-shadow:inset 0 0 0 3px var(--red)}
+.gc-name{font-family:var(--grotesk);font-size:16px;font-weight:700;letter-spacing:-0.02em;line-height:1.2;color:var(--black)}
+.gc-counts{font-family:var(--grotesk);font-size:11px;color:var(--dim);font-weight:500}
+.gc-bar{height:3px;background:rgba(0,0,0,0.08);border-radius:2px;overflow:hidden;margin-top:auto}
+.gc-bar-fill{height:100%;background:var(--acid);border-radius:2px;transition:width 0.5s}
+
+/* ── SUBCAT LIST (genre layer) ── */
+.subcat-list{border-top:1px solid var(--border)}
+.subcat-item{
+  padding:20px 32px;border-bottom:1px solid var(--border);
+  cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start;
+  transition:background var(--ease);
+  -webkit-tap-highlight-color:transparent;
+  position:relative;
+}
+.subcat-item:hover{background:#f0ece4}
+.subcat-item:focus-visible{outline:none;box-shadow:inset 0 0 0 3px var(--red)}
+.si-name{font-family:var(--grotesk);font-size:17px;font-weight:600;letter-spacing:-0.02em;color:var(--black);line-height:1.25}
+.si-note{font-family:var(--serif);font-size:13px;font-style:italic;color:var(--mid);margin-top:5px;line-height:1.4;max-width:600px}
+.si-right{text-align:right;flex-shrink:0}
+.si-count{font-family:var(--grotesk);font-size:22px;font-weight:700;color:var(--black);letter-spacing:-0.04em;line-height:1}
+.si-heard{font-family:var(--grotesk);font-size:10px;color:var(--dim);font-weight:600;margin-top:3px;letter-spacing:0.04em}
+.si-arrow{position:absolute;right:28px;top:50%;transform:translateY(-50%);font-size:20px;color:rgba(0,0,0,0.1);transition:color var(--ease),right var(--ease)}
+.subcat-item:hover .si-arrow{color:var(--black);right:24px}
+
+/* ── ALBUM LIST (subcat layer — virtualised) ── */
+.album-virtual-wrap{position:relative}
+
+.album-row{
+  position:absolute;left:0;right:0;
+  display:grid;grid-template-columns:80px 1fr 72px;
+  align-items:stretch;
+  border-bottom:1px solid var(--border);
+  transition:background var(--ease);
+  cursor:default;
+}
+.album-row:hover{background:#f0ece4}
+.album-row.heard{background:#f8f7f2}
+
+/* Art column */
+.album-art{
+  width:80px;height:100%;
+  flex-shrink:0;background:#e8e4dc;
+  position:relative;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+}
+.album-art img{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity 0.3s;position:absolute;inset:0}
+.album-art img.loaded{opacity:1}
+.album-art-fallback{
+  font-family:var(--grotesk);font-size:13px;font-weight:700;
+  color:rgba(0,0,0,0.2);letter-spacing:-0.03em;
+}
+.heard-toggle{
+  position:absolute;inset:0;background:transparent;border:none;
+  cursor:pointer;z-index:2;
+  display:flex;align-items:center;justify-content:center;
+  -webkit-tap-highlight-color:transparent;
+}
+.heard-toggle::before{
+  content:'';position:absolute;inset:0;
+  background:rgba(200,255,0,0);transition:background 0.15s;
+}
+.album-row:hover .heard-toggle::before{background:rgba(200,255,0,0.25)}
+.album-row.heard .album-art{background:#e8f0d0}
+.album-row.heard .heard-toggle::before{background:rgba(200,255,0,0.18)}
+.ht-icon{
+  position:relative;z-index:3;
+  font-size:20px;line-height:1;
+  opacity:0;transition:opacity 0.15s;
+  color:var(--black);
+}
+.album-row:hover .ht-icon{opacity:0.7}
+.album-row.heard .ht-icon{opacity:1;color:var(--black)}
+.heard-toggle:focus-visible{outline:2px solid var(--red)}
+
+/* Info column */
+.album-info{
+  padding:0 20px;
+  display:flex;flex-direction:column;justify-content:center;
+  min-width:0;
+}
+.ai-title{
+  font-family:var(--serif);font-size:15px;font-weight:400;font-style:italic;
+  color:var(--black);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  line-height:1.3;
+  transition:color var(--ease);
+}
+.album-row.heard .ai-title{
+  color:var(--dim);
+  text-decoration:line-through;text-decoration-color:var(--acid);text-decoration-thickness:2px;
+}
+.ai-artist{
+  font-family:var(--grotesk);font-size:11px;font-weight:600;
+  color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  margin-top:2px;letter-spacing:0.02em;
+}
+
+/* Year column */
+.album-right{
+  display:flex;flex-direction:column;align-items:flex-end;justify-content:center;
+  padding:0 20px 0 0;flex-shrink:0;gap:4px;
+}
+.album-year{
+  font-family:var(--grotesk);font-size:13px;font-weight:700;
+  color:rgba(0,0,0,0.2);letter-spacing:-0.02em;
+}
+.album-row:hover .album-year{color:var(--black)}
+.apple-link{
+  font-family:var(--grotesk);font-size:10px;font-weight:700;
+  color:var(--dim);text-decoration:none;letter-spacing:0.06em;text-transform:uppercase;
+  opacity:0;transition:opacity 0.15s;
+  padding:2px 5px;border:1px solid var(--border);border-radius:2px;
+}
+.album-row:hover .apple-link{opacity:1}
+.apple-link:hover{background:var(--black);color:var(--white);border-color:var(--black)}
+.apple-link:focus-visible{opacity:1;outline:1px solid var(--red)}
+
+/* ── SEARCH OVERLAY ── */
+#search-overlay{
+  position:absolute;inset:0;background:var(--white);
+  z-index:1000;display:flex;flex-direction:column;
+  opacity:0;pointer-events:none;transition:opacity 140ms;
+}
+#search-overlay.active{opacity:1;pointer-events:all}
+.search-results-header{
+  padding:14px 32px;font-family:var(--grotesk);font-size:11px;font-weight:700;
+  letter-spacing:0.08em;text-transform:uppercase;
+  color:var(--dim);border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.search-results-scroll{flex:1;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
+.search-results-scroll::-webkit-scrollbar{width:3px}
+.search-results-scroll::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.1)}
+
+.search-result-row{
+  display:grid;grid-template-columns:1fr auto;gap:16px;
+  padding:14px 32px;border-bottom:1px solid var(--border);
+  cursor:pointer;transition:background var(--ease);
+}
+.search-result-row:hover,.search-result-row:focus-visible{background:#f0ece4;outline:none}
+.sr-title{font-family:var(--serif);font-size:15px;font-style:italic;color:var(--black);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sr-artist{font-family:var(--grotesk);font-size:11px;font-weight:600;color:var(--dim);
+  margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:0.02em}
+.sr-right{text-align:right;flex-shrink:0}
+.sr-cat{font-family:var(--grotesk);font-size:10px;color:var(--dim);font-weight:600;
+  text-transform:uppercase;letter-spacing:0.06em;
+  max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sr-year{font-family:var(--grotesk);font-size:12px;font-weight:700;color:rgba(0,0,0,0.25);
+  margin-top:2px;letter-spacing:-0.02em}
+.search-result-row.heard .sr-title{color:var(--dim);text-decoration:line-through;
+  text-decoration-color:var(--acid);text-decoration-thickness:2px}
+
+.no-results{padding:48px 32px;font-family:var(--grotesk);font-size:13px;color:var(--dim);font-weight:500}
+
+/* ── UNPARSED NOTICE ── */
+#unparsed-notice{
+  position:fixed;bottom:16px;right:16px;
+  background:var(--red);color:var(--white);
+  font-family:var(--grotesk);font-size:11px;font-weight:700;
+  padding:10px 16px;border-radius:2px;max-width:320px;
+  z-index:9999;display:none;letter-spacing:0.02em;
+}
+#unparsed-notice.visible{display:block}
+
+/* ── RESPONSIVE ── */
+@media(max-width:600px){
+  .layer-header{padding:20px 20px 14px}
+  .genre-grid{grid-template-columns:1fr 1fr}
+  .genre-cell{padding:16px 18px 14px;min-height:90px}
+  .subcat-item{padding:16px 20px}
+  .si-arrow{display:none}
+  .search-container{padding:10px 20px}
+  .album-row{grid-template-columns:60px 1fr 56px}
+  .album-art{width:60px}
+  .album-info{padding:0 12px}
+  .album-right{padding:0 12px 0 0}
+  .album-year{font-size:11px}
+  .search-result-row{padding:12px 20px}
+  .search-results-header{padding:12px 20px}
+}
+@media(min-width:1400px){
+  .genre-grid{grid-template-columns:repeat(4,1fr)}
+  .album-row{grid-template-columns:88px 1fr 80px}
+  .album-art{width:88px}
+}
+
+:focus:not(:focus-visible){outline:none}
 </style>
 </head>
 <body>
 <div id="app">
-  <!-- Strips (residual ancestor path) -->
   <div class="strips" id="strips" role="navigation" aria-label="Navigation path"></div>
-
-  <!-- Layer container — layers injected here by JS -->
-  <div id="layer-host" style="position:absolute;inset:0;"></div>
-
-  <!-- Search overlay — lives above layers -->
+  <div id="layer-host" style="position:absolute;inset:0"></div>
   <div id="search-overlay" role="region" aria-live="polite" aria-label="Search results">
-    <div class="search-results-header" id="search-results-header">Type to search</div>
+    <div class="search-results-header" id="search-results-header">Search</div>
     <div class="search-results-scroll" id="search-results-list"></div>
   </div>
-
-  <!-- Unparsed lines notice -->
-  <div id="unparsed-notice" role="alert" aria-live="assertive"></div>
+  <div id="unparsed-notice" role="alert"></div>
 </div>
 
 <script>
-/* ═══════════════════════════════════════════════════════════
-   SONICFIELD — Layered Reveal Stack
-   Metaphor C: every depth is a full-viewport layer;
-   opening peels via clip-path; ancestors stay as edge strips.
-   ═══════════════════════════════════════════════════════════ */
-
-const NS = 'sonicfield_v1';
-const ITEM_H = 64; // album row height (px) — must match CSS
-
-/* ── STORAGE ─────────────────────────────────────────────── */
-const store = {
-  get(k, def) {
-    try { const v = localStorage.getItem(NS+':'+k); return v === null ? def : JSON.parse(v); }
-    catch { return def; }
-  },
-  set(k, v) {
-    try { localStorage.setItem(NS+':'+k, JSON.stringify(v)); } catch {}
-  }
+const NS='sf2';
+const store={
+  get(k,d){try{const v=localStorage.getItem(NS+':'+k);return v===null?d:JSON.parse(v)}catch{return d}},
+  set(k,v){try{localStorage.setItem(NS+':'+k,JSON.stringify(v))}catch{}}
 };
 
-/* Heard set */
-let heardSet = new Set(store.get('heard', []));
-function saveHeard() { store.set('heard', [...heardSet]); }
-function isHeard(id) { return heardSet.has(id); }
-function toggleHeard(id) {
-  if (heardSet.has(id)) heardSet.delete(id); else heardSet.add(id);
-  saveHeard();
-  refreshHeardDisplays(id);
+let heardSet=new Set(store.get('heard',[]));
+function saveHeard(){store.set('heard',[...heardSet])}
+function isHeard(id){return heardSet.has(id)}
+function toggleHeard(id){
+  if(heardSet.has(id))heardSet.delete(id);else heardSet.add(id);
+  saveHeard();refreshHeardDisplays(id);
 }
 
-/* Spatial state — stack of { type, id } */
-let navStack = store.get('navStack', []);
+let taxonomy=[];
+let allAlbums=[];
+let unparsedLines=[];
+const artCache={};
+const artInFlight={};
 
-/* ── PARSE albums.md ─────────────────────────────────────── */
-let taxonomy = [];   // [{name, note, subcats:[{name, note, albums:[{id,title,artist,year}]}]}]
-let allAlbums = [];  // flat list for search
-let unparsedLines = [];
-const albumById = {};
-
-async function parseAlbums() {
-  // Try repo-relative path (GitHub Pages subpath safe)
-  let text = '';
-  const tryPaths = ['./albums.md', '../albums.md'];
-  let ok = false;
-  for (const p of tryPaths) {
-    try {
-      const r = await fetch(p);
-      if (r.ok) { text = await r.text(); ok = true; break; }
-    } catch {}
+async function parseAlbums(){
+  let text='',ok=false;
+  for(const p of['./albums.md','../albums.md']){
+    try{const r=await fetch(p);if(r.ok){text=await r.text();ok=true;break}}catch{}
   }
-  if (!ok) {
-    showUnparsed(['Could not fetch albums.md — place it in the same directory as index.html.']);
-    return;
-  }
+  if(!ok){showUnparsed(['Could not fetch albums.md']);return}
 
-  const lines = text.split('\n');
-  let currentGenre = null;
-  let currentSubcat = null;
+  const lines=text.split('\n');
+  const genreMap={};
+  let currentGenre=null,currentSubcat=null;
 
-  const genreMap = {}; // name -> genre obj
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i].trim();
+    if(!line||line==='SONICFIELD LIST')continue;
 
-  for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
-    const line = raw.trim();
-    if (!line) continue;
-
-    // Skip file title
-    if (line === 'SONICFIELD LIST') continue;
-
-    // Category header: uppercase-led, contains '—' separator or is pure uppercase phrase
-    // Pattern: "GENRE — Subcat (note)" or "GENRE (note)"
-    const catMatch = line.match(/^([A-Z][A-Z &\-\/0-9]+?)(?:\s+—\s+(.+?))?(?:\s+\((.+)\))?\s*$/);
-    if (catMatch && !line.startsWith('- ') && /^[A-Z]/.test(line) && line === line.toUpperCase().replace(/[^A-Z\s&\-\/0-9\(\)]/g,'').trim() === line.replace(/[^A-Z\s&\-\/0-9\(\)]/g,'').trim()) {
-      // Broad heuristic: lines that start uppercase and aren't album entries
-      // More reliable: check if line does NOT start with "- ["
-    }
-    // Better: detect by structure
-    if (!line.startsWith('- ') && /^[A-Z]/.test(line) && line !== 'SONICFIELD LIST') {
-      // Header line — parse genre — subcat (note)
-      // Format options:
-      // "GENRE — Subcat Name (note text)"
-      // "GENRE (note)" (no subcat)
-      const dashIdx = line.indexOf(' — ');
-      let genreName, subcatName, note;
-      if (dashIdx !== -1) {
-        genreName = line.slice(0, dashIdx).trim();
-        const rest = line.slice(dashIdx + 3).trim();
-        const parenIdx = rest.indexOf(' (');
-        if (parenIdx !== -1) {
-          subcatName = rest.slice(0, parenIdx).trim();
-          note = rest.slice(parenIdx + 2, -1).trim();
-        } else {
-          subcatName = rest;
-          note = '';
-        }
-      } else {
-        // "GENRE NAME (note)"
-        const parenIdx = line.indexOf(' (');
-        if (parenIdx !== -1) {
-          genreName = line.slice(0, parenIdx).trim();
-          note = line.slice(parenIdx + 2, -1).trim();
-          subcatName = genreName; // single-level
-        } else {
-          genreName = line;
-          subcatName = '';
-          note = '';
-        }
+    if(!line.startsWith('- ')&&/^[A-Z]/.test(line)){
+      const dashIdx=line.indexOf(' — ');
+      let genreName,subcatName,note;
+      if(dashIdx!==-1){
+        genreName=line.slice(0,dashIdx).trim();
+        const rest=line.slice(dashIdx+3).trim();
+        const pi=rest.indexOf(' (');
+        if(pi!==-1){subcatName=rest.slice(0,pi).trim();note=rest.slice(pi+2,-1).trim()}
+        else{subcatName=rest;note=''}
+      }else{
+        const pi=line.indexOf(' (');
+        if(pi!==-1){genreName=line.slice(0,pi).trim();note=line.slice(pi+2,-1).trim();subcatName=genreName}
+        else{genreName=line;subcatName='';note=''}
       }
-
-      if (!genreMap[genreName]) {
-        genreMap[genreName] = { name: genreName, subcats: [] };
-        taxonomy.push(genreMap[genreName]);
-      }
-      currentGenre = genreMap[genreName];
-
-      if (subcatName && subcatName !== genreName) {
-        currentSubcat = { name: subcatName, note, albums: [], genreName };
+      if(!genreMap[genreName]){genreMap[genreName]={name:genreName,subcats:[]};taxonomy.push(genreMap[genreName])}
+      currentGenre=genreMap[genreName];
+      if(subcatName&&subcatName!==genreName){
+        currentSubcat={name:subcatName,note,albums:[],genreName};
         currentGenre.subcats.push(currentSubcat);
-      } else if (!subcatName || subcatName === genreName) {
-        // Treat as its own subcat
-        currentSubcat = { name: note || genreName, note: '', albums: [], genreName };
+      }else{
+        currentSubcat={name:note||genreName,note:'',albums:[],genreName};
         currentGenre.subcats.push(currentSubcat);
       }
       continue;
     }
 
-    // Album line: "- [ ] Title (Year) — Artist" or "- [x] Title (Year) — Artist"
-    const albumMatch = line.match(/^-\s+\[( |x)\]\s+(.+?)\s+\((\d{4})\)\s+—\s+(.+)$/);
-    if (albumMatch) {
-      const [, , title, year, artist] = albumMatch;
-      const id = allAlbums.length;
-      const album = { id, title: title.trim(), year: parseInt(year), artist: artist.trim(), subcatRef: currentSubcat };
+    const m=line.match(/^-\s+\[( |x)\]\s+(.+?)\s+\((\d{4})\)\s+—\s+(.+)$/);
+    if(m){
+      const id=allAlbums.length;
+      const album={id,title:m[2].trim(),year:parseInt(m[3]),artist:m[4].trim(),subcatRef:currentSubcat};
       allAlbums.push(album);
-      albumById[id] = album;
-      if (currentSubcat) currentSubcat.albums.push(album);
-      else unparsedLines.push(`[no category] ${line}`);
+      if(currentSubcat)currentSubcat.albums.push(album);
+      else unparsedLines.push('no-cat:'+line);
       continue;
     }
-
-    // Unrecognised non-empty line
-    if (line && line !== 'SONICFIELD LIST') {
-      unparsedLines.push(`line ${i+1}: ${line}`);
-    }
+    unparsedLines.push('line '+(i+1)+': '+line);
   }
-
-  if (unparsedLines.length) showUnparsed(unparsedLines);
+  if(unparsedLines.length)showUnparsed(unparsedLines);
 }
 
-function showUnparsed(lines) {
-  const el = document.getElementById('unparsed-notice');
-  el.textContent = `⚠ ${lines.length} unparsed line(s): ${lines.slice(0,3).join('; ')}${lines.length > 3 ? '…' : ''}`;
+function showUnparsed(lines){
+  const el=document.getElementById('unparsed-notice');
+  el.textContent=`⚠ ${lines.length} unparsed: ${lines.slice(0,2).join('; ')}`;
   el.classList.add('visible');
-  console.warn('SONICFIELD unparsed:', lines);
 }
 
-/* ── ALBUM ID HELPER ─────────────────────────────────────── */
-function albumUniqueId(album) {
-  // Stable ID based on position in allAlbums array
-  return album.id;
-}
-
-/* ── ITUNES ART CACHE ────────────────────────────────────── */
-const artCache = {}; // "artist|album" -> url or null
-const artInFlight = {};
-
-function fetchArt(artist, title, cb) {
-  const key = `${artist}|${title}`;
-  if (artCache[key] !== undefined) { cb(artCache[key]); return; }
-  if (artInFlight[key]) { artInFlight[key].push(cb); return; }
-  artInFlight[key] = [cb];
-
-  const q = encodeURIComponent(`${artist} ${title}`);
-  const url = `https://itunes.apple.com/search?term=${q}&entity=album&limit=1`;
-
-  fetch(url)
-    .then(r => r.json())
-    .then(data => {
-      const result = data.results && data.results[0];
-      const imgUrl = result ? result.artworkUrl100.replace('100x100', '200x200') : null;
-      artCache[key] = imgUrl;
-      const callbacks = artInFlight[key];
-      delete artInFlight[key];
-      callbacks.forEach(fn => fn(imgUrl));
+function fetchArt(artist,title,cb){
+  const key=`${artist}|${title}`;
+  if(artCache[key]!==undefined){cb(artCache[key]);return}
+  if(artInFlight[key]){artInFlight[key].push(cb);return}
+  artInFlight[key]=[cb];
+  fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(artist+' '+title)}&entity=album&limit=1`)
+    .then(r=>r.json())
+    .then(d=>{
+      const res=d.results&&d.results[0];
+      const url=res?res.artworkUrl100.replace('100x100','300x300'):null;
+      artCache[key]=url;
+      const cbs=artInFlight[key];delete artInFlight[key];
+      cbs.forEach(fn=>fn(url));
     })
-    .catch(() => {
-      artCache[key] = null;
-      const callbacks = artInFlight[key] || [];
-      delete artInFlight[key];
-      callbacks.forEach(fn => fn(null));
+    .catch(()=>{
+      artCache[key]=null;
+      const cbs=artInFlight[key]||[];delete artInFlight[key];
+      cbs.forEach(fn=>fn(null));
     });
 }
 
-function getAppleLink(artist, title, year) {
-  const q = encodeURIComponent(`${artist} ${title}`);
-  // Apple Music web link
-  return `https://music.apple.com/search?term=${q}`;
-}
+/* ── LAYERS ── */
+let layerStack=[];
+const layerHost=document.getElementById('layer-host');
+const stripsEl=document.getElementById('strips');
 
-/* ── LAYER SYSTEM ────────────────────────────────────────── */
-// nav path: array of {type:'root'} | {type:'genre', idx} | {type:'subcat', genreIdx, subcatIdx}
-let layerStack = []; // {type, data, element, scrollTop}
+function rowHeight(){return window.innerWidth<600?60:(window.innerWidth>=1400?88:80)}
 
-const layerHost = document.getElementById('layer-host');
-const stripsEl = document.getElementById('strips');
+function stripColors(){return['var(--white)','#f0ece4','#e8e3da','#e0dbd1']}
 
-function stripColor(depth) {
-  const colors = ['var(--strip-0)','var(--strip-1)','var(--strip-2)','var(--strip-3)','var(--strip-4)'];
-  return colors[depth % colors.length];
-}
-
-function renderStrips() {
-  stripsEl.innerHTML = '';
-  // Show strips for all layers except the topmost
-  for (let i = 0; i < layerStack.length - 1; i++) {
-    const layer = layerStack[i];
-    const strip = document.createElement('button');
-    strip.className = 'strip';
-    strip.setAttribute('tabindex', '0');
-    strip.setAttribute('aria-label', `Back to: ${layerLabel(layer)}`);
-    strip.style.background = stripColor(i);
-    strip.innerHTML = `
-      <span class="strip-depth" aria-hidden="true">${'▲'.repeat(i+1)}</span>
-      <span class="strip-label">${layerLabel(layer)}</span>
-      <span class="strip-back" aria-hidden="true">↑</span>
-    `;
-    const targetDepth = i;
-    strip.addEventListener('click', () => popToDepth(targetDepth));
-    strip.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' ') { e.preventDefault(); popToDepth(targetDepth); } });
-    stripsEl.appendChild(strip);
+function renderStrips(){
+  stripsEl.innerHTML='';
+  for(let i=0;i<layerStack.length-1;i++){
+    const layer=layerStack[i];
+    const s=document.createElement('button');
+    s.className='strip';
+    s.setAttribute('tabindex','0');
+    s.setAttribute('data-depth',i);
+    s.setAttribute('aria-label','Back to: '+layerLabel(layer));
+    s.style.background=stripColors()[i]||'var(--white)';
+    s.innerHTML=`<span class="strip-label">${layerLabel(layer)}</span><span class="strip-arrow">↑</span>`;
+    const d=i;
+    s.addEventListener('click',()=>popToDepth(d));
+    s.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();popToDepth(d)}});
+    stripsEl.appendChild(s);
   }
-
-  // Offset layer content by strip height
-  const topOffset = (layerStack.length - 1) * 44;
-  layerHost.style.top = topOffset + 'px';
-  stripsEl.style.top = '0';
+  layerHost.style.top=((layerStack.length-1)*40)+'px';
 }
 
-function layerLabel(layer) {
-  if (layer.type === 'root') return 'SONICFIELD';
-  if (layer.type === 'genre') return taxonomy[layer.genreIdx].name;
-  if (layer.type === 'subcat') {
-    const sc = taxonomy[layer.genreIdx].subcats[layer.subcatIdx];
-    return sc.name;
-  }
-  return '';
+function layerLabel(l){
+  if(l.type==='root')return'SONICFIELD';
+  if(l.type==='genre')return taxonomy[l.genreIdx].name;
+  if(l.type==='subcat'){return taxonomy[l.genreIdx].subcats[l.subcatIdx].name}
+  return'';
 }
 
-function pushLayer(config, animate = true) {
-  const el = buildLayerElement(config);
-  layerStack.push({ ...config, element: el, scrollTop: 0 });
+function pushLayer(cfg,animate=true){
+  const el=buildLayerEl(cfg);
+  layerStack.push({...cfg,element:el});
   layerHost.appendChild(el);
   renderStrips();
-
-  if (animate) {
+  if(animate){
     el.classList.add('entering');
-    el.addEventListener('animationend', () => el.classList.remove('entering'), { once: true });
+    el.addEventListener('animationend',()=>el.classList.remove('entering'),{once:true});
   }
-
   persistNav();
 }
 
-function popLayer(animate = true) {
-  if (layerStack.length <= 1) return;
-  const top = layerStack.pop();
+function popLayer(animate=true){
+  if(layerStack.length<=1)return;
+  const top=layerStack.pop();
   renderStrips();
-
-  if (animate) {
+  if(animate){
     top.element.classList.add('leaving');
-    top.element.addEventListener('animationend', () => {
-      top.element.remove();
-    }, { once: true });
-  } else {
-    top.element.remove();
-  }
-
+    top.element.addEventListener('animationend',()=>top.element.remove(),{once:true});
+  }else top.element.remove();
   persistNav();
 }
 
-function popToDepth(targetDepth) {
-  while (layerStack.length - 1 > targetDepth) {
-    popLayer(layerStack.length - 1 === targetDepth + 1);
-  }
+function popToDepth(d){
+  while(layerStack.length-1>d)popLayer(layerStack.length-1===d+1);
 }
 
-function persistNav() {
-  const state = layerStack.map(l => ({ type: l.type, genreIdx: l.genreIdx, subcatIdx: l.subcatIdx }));
-  store.set('navStack', state);
+function persistNav(){
+  store.set('navStack',layerStack.map(l=>({type:l.type,genreIdx:l.genreIdx,subcatIdx:l.subcatIdx})));
 }
 
-/* ── BUILD LAYER ELEMENTS ────────────────────────────────── */
-function buildLayerElement(config) {
-  const div = document.createElement('div');
-  div.className = 'layer';
-
-  if (config.type === 'root') {
-    div.appendChild(buildRootContent());
-  } else if (config.type === 'genre') {
-    div.appendChild(buildGenreContent(config.genreIdx));
-  } else if (config.type === 'subcat') {
-    div.appendChild(buildSubcatContent(config.genreIdx, config.subcatIdx));
-  }
-
+/* ── BUILD LAYERS ── */
+function buildLayerEl(cfg){
+  const div=document.createElement('div');
+  div.className='layer';
+  if(cfg.type==='root')div.appendChild(buildRoot());
+  else if(cfg.type==='genre')div.appendChild(buildGenre(cfg.genreIdx));
+  else if(cfg.type==='subcat')div.appendChild(buildSubcat(cfg.genreIdx,cfg.subcatIdx));
   return div;
 }
 
-/* ROOT LAYER — genre grid */
-function buildRootContent() {
-  const wrap = document.createElement('div');
-  wrap.className = 'layer-content';
+function buildSearchBar(){
+  const c=document.createElement('div');
+  c.className='search-container';
+  c.innerHTML=`<div class="search-wrap"><input type="search" placeholder="Search albums, artists…" aria-label="Search collection" autocomplete="off" spellcheck="false"><button class="search-clear" aria-label="Clear search">×</button></div>`;
+  const inp=c.querySelector('input');
+  const clr=c.querySelector('.search-clear');
+  inp.value=searchQuery;
+  if(searchQuery)clr.classList.add('visible');
+  inp.addEventListener('input',()=>{
+    clr.classList.toggle('visible',inp.value.trim().length>0);
+    clearTimeout(searchDebounce);
+    searchDebounce=setTimeout(()=>{
+      document.querySelectorAll('.search-container input').forEach(el=>{if(el!==inp)el.value=inp.value});
+      setSearch(inp.value.trim().toLowerCase());
+    },80);
+  });
+  clr.addEventListener('click',()=>{inp.value='';clr.classList.remove('visible');setSearch('')});
+  inp.addEventListener('keydown',e=>{if(e.key==='Escape'){clr.click();inp.blur()}});
+  return c;
+}
 
-  // Header
-  const header = document.createElement('div');
-  header.className = 'layer-header';
-  const totalHeard = allAlbums.filter(a => isHeard(a.id)).length;
-  header.innerHTML = `
-    <h1>SONICFIELD</h1>
-    <p class="layer-note">A taxonomy of recorded sound.</p>
-    <div class="layer-meta">
-      <span>${allAlbums.length} albums</span>
-      <span class="heard-count">${totalHeard} heard</span>
-      <span>${taxonomy.length} genres</span>
-    </div>
-  `;
-  wrap.appendChild(header);
-
-  // Search
-  wrap.appendChild(buildSearchBar());
-
-  // Grid
-  const viewport = document.createElement('div');
-  viewport.className = 'scroll-viewport';
-  const grid = document.createElement('div');
-  grid.className = 'genre-grid';
-  grid.setAttribute('role', 'list');
-
-  taxonomy.forEach((genre, gi) => {
-    const totalInGenre = genre.subcats.reduce((s, sc) => s + sc.albums.length, 0);
-    const heardInGenre = genre.subcats.reduce((s, sc) => s + sc.albums.filter(a => isHeard(a.id)).length, 0);
-    const pct = totalInGenre > 0 ? (heardInGenre / totalInGenre * 100).toFixed(0) : 0;
-
-    const cell = document.createElement('div');
-    cell.className = 'genre-cell';
-    cell.setAttribute('tabindex', '0');
-    cell.setAttribute('role', 'listitem button');
-    cell.setAttribute('aria-label', `${genre.name}, ${totalInGenre} albums`);
-    cell.innerHTML = `
-      <div class="gc-name">${genre.name}</div>
-      <div class="gc-sub-count">${genre.subcats.length} subcategory${genre.subcats.length !== 1 ? 'ies' : 'y'}</div>
-      <div class="gc-album-count">${totalInGenre} albums · <span class="heard-count">${heardInGenre} heard</span></div>
-      <div class="gc-heard-bar"><div class="gc-heard-bar-fill" style="width:${pct}%"></div></div>
-    `;
-    cell.addEventListener('click', () => pushLayer({ type:'genre', genreIdx: gi }));
-    cell.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' ') { e.preventDefault(); cell.click(); } });
+/* ROOT */
+function buildRoot(){
+  const w=document.createElement('div');w.className='layer-content';
+  const totalHeard=allAlbums.filter(a=>isHeard(a.id)).length;
+  const h=document.createElement('div');h.className='layer-header';
+  h.innerHTML=`<h1>SONICFIELD</h1><p class="layer-note">A complete taxonomy of recorded sound — ${allAlbums.length} albums across ${taxonomy.length} genres.</p><div class="layer-meta"><span>${allAlbums.length} albums</span><span class="heard-ct">${totalHeard} heard</span></div>`;
+  w.appendChild(h);
+  w.appendChild(buildSearchBar());
+  const vp=document.createElement('div');vp.className='scroll-viewport';
+  const grid=document.createElement('div');grid.className='genre-grid';grid.setAttribute('role','list');
+  taxonomy.forEach((genre,gi)=>{
+    const tot=genre.subcats.reduce((s,sc)=>s+sc.albums.length,0);
+    const hd=genre.subcats.reduce((s,sc)=>s+sc.albums.filter(a=>isHeard(a.id)).length,0);
+    const pct=tot>0?(hd/tot*100).toFixed(0):0;
+    const cell=document.createElement('div');
+    cell.className='genre-cell';cell.setAttribute('tabindex','0');cell.setAttribute('role','button');
+    cell.setAttribute('aria-label',`${genre.name}, ${tot} albums`);
+    cell.innerHTML=`<div class="gc-name">${genre.name}</div><div class="gc-counts">${genre.subcats.length} subcategories · ${tot} albums</div><div class="gc-bar"><div class="gc-bar-fill" style="width:${pct}%"></div></div>`;
+    cell.addEventListener('click',()=>pushLayer({type:'genre',genreIdx:gi}));
+    cell.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();cell.click()}});
     grid.appendChild(cell);
   });
-
-  viewport.appendChild(grid);
-  wrap.appendChild(viewport);
-  return wrap;
+  vp.appendChild(grid);w.appendChild(vp);
+  return w;
 }
 
-/* GENRE LAYER — subcat list */
-function buildGenreContent(genreIdx) {
-  const genre = taxonomy[genreIdx];
-  const wrap = document.createElement('div');
-  wrap.className = 'layer-content';
-
-  const totalInGenre = genre.subcats.reduce((s, sc) => s + sc.albums.length, 0);
-  const heardInGenre = genre.subcats.reduce((s, sc) => s + sc.albums.filter(a => isHeard(a.id)).length, 0);
-
-  const header = document.createElement('div');
-  header.className = 'layer-header';
-  header.innerHTML = `
-    <h1>${genre.name}</h1>
-    <div class="layer-meta">
-      <span>${genre.subcats.length} subcategories</span>
-      <span>${totalInGenre} albums</span>
-      <span class="heard-count">${heardInGenre} heard</span>
-    </div>
-  `;
-  wrap.appendChild(header);
-
-  wrap.appendChild(buildSearchBar());
-
-  const viewport = document.createElement('div');
-  viewport.className = 'scroll-viewport';
-  const list = document.createElement('div');
-  list.className = 'subcat-list';
-  list.setAttribute('role', 'list');
-
-  genre.subcats.forEach((sc, sci) => {
-    const heardInSc = sc.albums.filter(a => isHeard(a.id)).length;
-    const item = document.createElement('div');
-    item.className = 'subcat-item';
-    item.setAttribute('tabindex', '0');
-    item.setAttribute('role', 'listitem button');
-    item.setAttribute('aria-label', `${sc.name}, ${sc.albums.length} albums`);
-    item.innerHTML = `
-      <div>
-        <div class="si-name">${sc.name}</div>
-        ${sc.note ? `<div class="si-note">${sc.note}</div>` : ''}
-      </div>
-      <div class="si-right">
-        <div class="si-count">${sc.albums.length}</div>
-        <div class="si-heard-frac">${heardInSc}/${sc.albums.length}</div>
-      </div>
-    `;
-    item.addEventListener('click', () => pushLayer({ type:'subcat', genreIdx, subcatIdx: sci }));
-    item.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' ') { e.preventDefault(); item.click(); } });
+/* GENRE */
+function buildGenre(gi){
+  const genre=taxonomy[gi];
+  const w=document.createElement('div');w.className='layer-content';
+  const tot=genre.subcats.reduce((s,sc)=>s+sc.albums.length,0);
+  const hd=genre.subcats.reduce((s,sc)=>s+sc.albums.filter(a=>isHeard(a.id)).length,0);
+  const h=document.createElement('div');h.className='layer-header';
+  h.innerHTML=`<h1>${genre.name}</h1><div class="layer-meta"><span>${genre.subcats.length} subcategories</span><span>${tot} albums</span><span class="heard-ct">${hd} heard</span></div>`;
+  w.appendChild(h);w.appendChild(buildSearchBar());
+  const vp=document.createElement('div');vp.className='scroll-viewport';
+  const list=document.createElement('div');list.className='subcat-list';list.setAttribute('role','list');
+  genre.subcats.forEach((sc,sci)=>{
+    const hd2=sc.albums.filter(a=>isHeard(a.id)).length;
+    const item=document.createElement('div');
+    item.className='subcat-item';item.setAttribute('tabindex','0');item.setAttribute('role','button');
+    item.setAttribute('aria-label',`${sc.name}, ${sc.albums.length} albums`);
+    item.innerHTML=`<div><div class="si-name">${sc.name}</div>${sc.note?`<div class="si-note">${sc.note}</div>`:''}</div><div class="si-right"><div class="si-count">${sc.albums.length}</div><div class="si-heard">${hd2} heard</div></div><span class="si-arrow" aria-hidden="true">→</span>`;
+    item.addEventListener('click',()=>pushLayer({type:'subcat',genreIdx:gi,subcatIdx:sci}));
+    item.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();item.click()}});
     list.appendChild(item);
   });
-
-  viewport.appendChild(list);
-  wrap.appendChild(viewport);
-  return wrap;
+  vp.appendChild(list);w.appendChild(vp);
+  return w;
 }
 
-/* SUBCAT LAYER — virtualised album list */
-function buildSubcatContent(genreIdx, subcatIdx) {
-  const genre = taxonomy[genreIdx];
-  const sc = genre.subcats[subcatIdx];
-  const wrap = document.createElement('div');
-  wrap.className = 'layer-content';
+/* SUBCAT — virtualised */
+function buildSubcat(gi,sci){
+  const genre=taxonomy[gi];const sc=genre.subcats[sci];
+  const w=document.createElement('div');w.className='layer-content';
+  const hd=sc.albums.filter(a=>isHeard(a.id)).length;
+  const header=document.createElement('div');header.className='layer-header';
+  header.innerHTML=`<div class="genre-eyebrow">${genre.name}</div><h1>${sc.name}</h1>${sc.note?`<p class="layer-note">${sc.note}</p>`:''}<div class="layer-meta"><span>${sc.albums.length} albums</span><span class="heard-ct">${hd} heard</span></div>`;
+  w.appendChild(header);w.appendChild(buildSearchBar());
 
-  const heardCount = sc.albums.filter(a => isHeard(a.id)).length;
+  const vp=document.createElement('div');vp.className='scroll-viewport';
+  vp.setAttribute('role','list');vp.setAttribute('aria-label',sc.name+' albums');
 
-  const header = document.createElement('div');
-  header.className = 'layer-header';
-  header.innerHTML = `
-    <div class="genre-eyebrow">${genre.name}</div>
-    <h1>${sc.name}</h1>
-    ${sc.note ? `<p class="layer-note">${sc.note}</p>` : ''}
-    <div class="layer-meta">
-      <span>${sc.albums.length} albums</span>
-      <span class="heard-count">${heardCount} heard</span>
-    </div>
-  `;
-  wrap.appendChild(header);
+  const vWrap=document.createElement('div');vWrap.className='album-virtual-wrap';
+  const rendered={};
 
-  wrap.appendChild(buildSearchBar());
-
-  const viewport = document.createElement('div');
-  viewport.className = 'scroll-viewport';
-  viewport.setAttribute('role', 'list');
-  viewport.setAttribute('aria-label', `${sc.name} album list`);
-
-  // Virtualised list
-  const vWrap = document.createElement('div');
-  vWrap.className = 'album-virtual-wrap';
-  const rowH = ITEM_H;
-  vWrap.style.height = (sc.albums.length * rowH) + 'px';
-
-  // Rendered row cache
-  const rendered = {};
-  let visibleRange = [0, 0];
-
-  function getRowH() {
-    // responsive: 60px on narrow
-    return window.innerWidth < 600 ? 60 : (window.innerWidth >= 1200 ? 68 : 64);
+  function update(){
+    const rH=rowHeight();
+    vWrap.style.height=(sc.albums.length*rH)+'px';
+    const top=vp.scrollTop,h2=vp.clientHeight;
+    const buf=6;
+    const start=Math.max(0,Math.floor(top/rH)-buf);
+    const end=Math.min(sc.albums.length-1,Math.ceil((top+h2)/rH)+buf);
+    for(const k in rendered){
+      const ki=parseInt(k);
+      if(ki<start||ki>end){rendered[k].remove();delete rendered[k]}
+    }
+    for(let i=start;i<=end;i++){
+      if(rendered[i]){rendered[i].style.top=(i*rH)+'px';rendered[i].style.height=rH+'px';continue}
+      const row=buildAlbumRow(sc.albums[i],rH);
+      row.style.top=(i*rH)+'px';row.style.height=rH+'px';
+      vWrap.appendChild(row);rendered[i]=row;
+    }
   }
 
-  function updateRows() {
-    const rH = getRowH();
-    vWrap.style.height = (sc.albums.length * rH) + 'px';
-    const scrollTop = viewport.scrollTop;
-    const viewH = viewport.clientHeight;
-    const buffer = 5;
-    const start = Math.max(0, Math.floor(scrollTop / rH) - buffer);
-    const end = Math.min(sc.albums.length - 1, Math.ceil((scrollTop + viewH) / rH) + buffer);
-
-    // Remove out-of-range
-    for (const k in rendered) {
-      const ki = parseInt(k);
-      if (ki < start || ki > end) {
-        rendered[k].remove();
-        delete rendered[k];
-      }
-    }
-
-    // Add in-range
-    for (let i = start; i <= end; i++) {
-      if (rendered[i]) {
-        rendered[i].style.top = (i * rH) + 'px';
-        rendered[i].style.height = rH + 'px';
-        continue;
-      }
-      const album = sc.albums[i];
-      const row = buildAlbumRow(album, rH);
-      row.style.top = (i * rH) + 'px';
-      row.style.height = rH + 'px';
-      vWrap.appendChild(row);
-      rendered[i] = row;
-    }
-    visibleRange = [start, end];
-  }
-
-  viewport.addEventListener('scroll', updateRows, { passive: true });
-  // Restore scroll position
-  const savedScroll = store.get(`scroll:${genreIdx}:${subcatIdx}`, 0);
-  viewport.scrollTop = savedScroll;
-  viewport.addEventListener('scroll', () => {
-    store.set(`scroll:${genreIdx}:${subcatIdx}`, viewport.scrollTop);
-  }, { passive: true });
-
-  // Observe resize
-  const ro = new ResizeObserver(updateRows);
-  ro.observe(viewport);
-
-  viewport.appendChild(vWrap);
-  wrap.appendChild(viewport);
-
-  // Initial render after DOM attach
-  requestAnimationFrame(updateRows);
-
-  return wrap;
+  vp.addEventListener('scroll',update,{passive:true});
+  const saved=store.get(`sc:${gi}:${sci}`,0);
+  vp.scrollTop=saved;
+  vp.addEventListener('scroll',()=>store.set(`sc:${gi}:${sci}`,vp.scrollTop),{passive:true});
+  new ResizeObserver(update).observe(vp);
+  vp.appendChild(vWrap);w.appendChild(vp);
+  requestAnimationFrame(update);
+  return w;
 }
 
-function buildAlbumRow(album, rH) {
-  const heard = isHeard(album.id);
-  const row = document.createElement('div');
-  row.className = 'album-row' + (heard ? ' heard' : '');
-  row.setAttribute('data-album-id', album.id);
+function buildAlbumRow(album,rH){
+  const heard=isHeard(album.id);
+  const row=document.createElement('div');
+  row.className='album-row'+(heard?' heard':'');
+  row.setAttribute('data-album-id',album.id);
 
-  const artWrap = document.createElement('div');
-  artWrap.className = 'album-art';
-
-  const fallback = document.createElement('div');
-  fallback.className = 'album-art-fallback';
-  fallback.textContent = album.year;
-  artWrap.appendChild(fallback);
-
-  const img = document.createElement('img');
-  img.alt = '';
-  img.loading = 'lazy';
-  artWrap.appendChild(img);
-
-  // Lazy load art
-  fetchArt(album.artist, album.title, url => {
-    if (url) {
-      img.src = url;
-      img.onload = () => img.classList.add('loaded');
-    }
+  /* art */
+  const art=document.createElement('div');art.className='album-art';
+  const fb=document.createElement('div');fb.className='album-art-fallback';fb.textContent=album.year;
+  art.appendChild(fb);
+  const img=document.createElement('img');img.alt='';img.loading='lazy';art.appendChild(img);
+  fetchArt(album.artist,album.title,url=>{if(url){img.src=url;img.onload=()=>img.classList.add('loaded')}});
+  const btn=document.createElement('button');btn.className='heard-toggle';
+  btn.setAttribute('aria-label',`Mark ${album.title} as ${heard?'unheard':'heard'}`);
+  btn.setAttribute('aria-pressed',heard?'true':'false');
+  btn.innerHTML=`<span class="ht-icon" aria-hidden="true">${heard?'✦':'✦'}</span>`;
+  btn.addEventListener('click',e=>{
+    e.stopPropagation();toggleHeard(album.id);
+    const n=isHeard(album.id);
+    row.classList.toggle('heard',n);
+    btn.setAttribute('aria-pressed',n?'true':'false');
   });
+  art.appendChild(btn);row.appendChild(art);
 
-  const heardBtn = document.createElement('button');
-  heardBtn.className = 'heard-toggle';
-  heardBtn.setAttribute('aria-label', `Mark ${album.title} as ${isHeard(album.id) ? 'unheard' : 'heard'}`);
-  heardBtn.setAttribute('aria-pressed', isHeard(album.id) ? 'true' : 'false');
-  heardBtn.innerHTML = `<span class="ht-icon" aria-hidden="true">${isHeard(album.id) ? '♦' : '◇'}</span>`;
-  heardBtn.addEventListener('click', e => {
-    e.stopPropagation();
-    toggleHeard(album.id);
-    const nowHeard = isHeard(album.id);
-    row.classList.toggle('heard', nowHeard);
-    heardBtn.setAttribute('aria-pressed', nowHeard ? 'true' : 'false');
-    heardBtn.setAttribute('aria-label', `Mark ${album.title} as ${nowHeard ? 'unheard' : 'heard'}`);
-    heardBtn.querySelector('.ht-icon').textContent = nowHeard ? '♦' : '◇';
-  });
-  artWrap.appendChild(heardBtn);
-  row.appendChild(artWrap);
-
-  const info = document.createElement('div');
-  info.className = 'album-info';
-  info.innerHTML = `
-    <div class="ai-title">${escHtml(album.title)}</div>
-    <div class="ai-artist">${escHtml(album.artist)}</div>
-  `;
+  /* info */
+  const info=document.createElement('div');info.className='album-info';
+  info.innerHTML=`<div class="ai-title">${esc(album.title)}</div><div class="ai-artist">${esc(album.artist)}</div>`;
   row.appendChild(info);
 
-  const right = document.createElement('div');
-  right.className = 'album-right';
-  const appleUrl = getAppleLink(album.artist, album.title, album.year);
-  right.innerHTML = `
-    <span class="album-year">${album.year}</span>
-    <a class="apple-link" href="${appleUrl}" target="_blank" rel="noopener" aria-label="Open ${escHtml(album.title)} on Apple Music">♫</a>
-  `;
+  /* right */
+  const right=document.createElement('div');right.className='album-right';
+  right.innerHTML=`<span class="album-year">${album.year}</span><a class="apple-link" href="https://music.apple.com/search?term=${encodeURIComponent(album.artist+' '+album.title)}" target="_blank" rel="noopener" aria-label="Apple Music">▶︎</a>`;
   row.appendChild(right);
-
   return row;
 }
 
-/* ── HEARD DISPLAY REFRESH ───────────────────────────────── */
-function refreshHeardDisplays(albumId) {
-  // Update all visible album rows for this id
-  document.querySelectorAll(`[data-album-id="${albumId}"]`).forEach(row => {
-    const heard = isHeard(albumId);
-    row.classList.toggle('heard', heard);
-    const btn = row.querySelector('.heard-toggle');
-    if (btn) {
-      btn.setAttribute('aria-pressed', heard ? 'true' : 'false');
-      btn.querySelector('.ht-icon').textContent = heard ? '♦' : '◇';
-    }
+function refreshHeardDisplays(id){
+  document.querySelectorAll(`[data-album-id="${id}"]`).forEach(row=>{
+    const h=isHeard(id);
+    row.classList.toggle('heard',h);
+    const btn=row.querySelector('.heard-toggle');
+    if(btn)btn.setAttribute('aria-pressed',h?'true':'false');
   });
 }
 
-/* ── SEARCH ──────────────────────────────────────────────── */
-let searchQuery = '';
-let searchDebounce = null;
+/* ── SEARCH ── */
+let searchQuery='';
+let searchDebounce=null;
 
-function buildSearchBar() {
-  const container = document.createElement('div');
-  container.className = 'search-container';
-  container.innerHTML = `
-    <div class="search-wrap">
-      <input type="search" placeholder="Search albums, artists…" aria-label="Search collection" autocomplete="off" spellcheck="false">
-      <button class="search-clear" aria-label="Clear search" tabindex="-1">×</button>
-    </div>
-  `;
-  const input = container.querySelector('input');
-  const clearBtn = container.querySelector('.search-clear');
-
-  input.value = searchQuery;
-  if (searchQuery) clearBtn.classList.add('visible');
-
-  input.addEventListener('input', () => {
-    const q = input.value.trim().toLowerCase();
-    clearBtn.classList.toggle('visible', q.length > 0);
-    clearTimeout(searchDebounce);
-    searchDebounce = setTimeout(() => {
-      // Sync to all search inputs
-      document.querySelectorAll('.search-container input').forEach(el => {
-        if (el !== input) el.value = input.value;
-      });
-      setSearch(q);
-    }, 80);
-  });
-
-  clearBtn.addEventListener('click', () => {
-    input.value = '';
-    clearBtn.classList.remove('visible');
-    setSearch('');
-  });
-
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { clearBtn.click(); input.blur(); }
-  });
-
-  return container;
-}
-
-function setSearch(q) {
-  searchQuery = q;
-  const overlay = document.getElementById('search-overlay');
-  if (!q) {
-    overlay.classList.remove('active');
-    return;
-  }
-  overlay.classList.add('active');
+function setSearch(q){
+  searchQuery=q;
+  const ov=document.getElementById('search-overlay');
+  if(!q){ov.classList.remove('active');return}
+  ov.classList.add('active');
   renderSearchResults(q);
 }
 
-function renderSearchResults(q) {
-  const header = document.getElementById('search-results-header');
-  const list = document.getElementById('search-results-list');
-
-  const results = allAlbums.filter(a =>
-    a.title.toLowerCase().includes(q) ||
-    a.artist.toLowerCase().includes(q) ||
-    String(a.year).includes(q) ||
-    (a.subcatRef && a.subcatRef.name.toLowerCase().includes(q)) ||
-    (a.subcatRef && a.subcatRef.genreName && a.subcatRef.genreName.toLowerCase().includes(q))
+function renderSearchResults(q){
+  const hdr=document.getElementById('search-results-header');
+  const list=document.getElementById('search-results-list');
+  const results=allAlbums.filter(a=>
+    a.title.toLowerCase().includes(q)||
+    a.artist.toLowerCase().includes(q)||
+    String(a.year).includes(q)||
+    (a.subcatRef&&(a.subcatRef.name.toLowerCase().includes(q)||a.subcatRef.genreName.toLowerCase().includes(q)))
   );
-
-  header.textContent = `${results.length} result${results.length !== 1 ? 's' : ''} for "${q}"`;
-  list.innerHTML = '';
-
-  if (!results.length) {
-    list.innerHTML = '<div class="no-results">Nothing found.</div>';
-    return;
-  }
-
-  // Show up to 200 results (performance)
-  const shown = results.slice(0, 200);
-  const frag = document.createDocumentFragment();
-  shown.forEach(album => {
-    const heard = isHeard(album.id);
-    const row = document.createElement('div');
-    row.className = 'search-result-row' + (heard ? ' heard' : '');
-    row.setAttribute('tabindex', '0');
-    row.setAttribute('role', 'button');
-    row.setAttribute('aria-label', `${album.title} by ${album.artist}, ${album.year}`);
-
-    const catLabel = album.subcatRef
-      ? (album.subcatRef.genreName && album.subcatRef.genreName !== album.subcatRef.name
-          ? `${abbreviate(album.subcatRef.genreName)} / ${album.subcatRef.name}`
-          : album.subcatRef.name)
-      : '';
-
-    row.innerHTML = `
-      <div>
-        <div class="sr-title">${highlight(escHtml(album.title), q)}${heard ? '<span class="sr-heard-dot" title="Heard"></span>' : ''}</div>
-        <div class="sr-artist">${highlight(escHtml(album.artist), q)}</div>
-      </div>
-      <div>
-        <div class="sr-cat">${escHtml(catLabel)}</div>
-        <div class="sr-year">${album.year}</div>
-      </div>
-    `;
-
-    // Click: navigate to subcat containing album, then clear search
-    row.addEventListener('click', () => navigateToAlbum(album));
-    row.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' ') { e.preventDefault(); navigateToAlbum(album); } });
+  hdr.textContent=`${results.length} result${results.length!==1?'s':''} for "${q}"`;
+  list.innerHTML='';
+  if(!results.length){list.innerHTML='<div class="no-results">Nothing found.</div>';return}
+  const shown=results.slice(0,200);
+  const frag=document.createDocumentFragment();
+  shown.forEach(album=>{
+    const h=isHeard(album.id);
+    const row=document.createElement('div');
+    row.className='search-result-row'+(h?' heard':'');
+    row.setAttribute('tabindex','0');row.setAttribute('role','button');
+    const cat=album.subcatRef?(album.subcatRef.genreName!==album.subcatRef.name?`${shorten(album.subcatRef.genreName)} / ${album.subcatRef.name}`:album.subcatRef.name):'';
+    row.innerHTML=`<div><div class="sr-title">${hi(esc(album.title),q)}</div><div class="sr-artist">${hi(esc(album.artist),q)}</div></div><div class="sr-right"><div class="sr-cat">${esc(cat)}</div><div class="sr-year">${album.year}</div></div>`;
+    row.addEventListener('click',()=>navToAlbum(album));
+    row.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();navToAlbum(album)}});
     frag.appendChild(row);
   });
   list.appendChild(frag);
-  if (results.length > 200) {
-    const more = document.createElement('div');
-    more.className = 'no-results';
-    more.textContent = `… and ${results.length - 200} more. Refine your search.`;
-    list.appendChild(more);
-  }
+  if(results.length>200){const m=document.createElement('div');m.className='no-results';m.textContent=`…and ${results.length-200} more. Refine your search.`;list.appendChild(m)}
 }
 
-function highlight(html, q) {
-  if (!q) return html;
-  const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return html.replace(new RegExp(`(${escaped})`, 'gi'), '<mark style="background:rgba(184,149,90,0.25);color:inherit;border-radius:1px">$1</mark>');
+function hi(html,q){
+  if(!q)return html;
+  const e=q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  return html.replace(new RegExp(`(${e})`,'gi'),'<mark style="background:rgba(200,255,0,0.5);color:inherit;border-radius:1px">$1</mark>');
 }
 
-function abbreviate(str) {
-  // Shorten long genre names for search result display
-  return str.length > 22 ? str.slice(0, 20) + '…' : str;
-}
-
-function navigateToAlbum(album) {
-  if (!album.subcatRef) return;
-  const sc = album.subcatRef;
-  const genreIdx = taxonomy.findIndex(g => g.name === sc.genreName);
-  if (genreIdx === -1) return;
-  const subcatIdx = taxonomy[genreIdx].subcats.indexOf(sc);
-  if (subcatIdx === -1) return;
-
-  // Clear search
+function navToAlbum(album){
+  if(!album.subcatRef)return;
+  const sc=album.subcatRef;
+  const gi=taxonomy.findIndex(g=>g.name===sc.genreName);
+  if(gi===-1)return;
+  const si=taxonomy[gi].subcats.indexOf(sc);
+  if(si===-1)return;
   setSearch('');
-  document.querySelectorAll('.search-container input').forEach(el => el.value = '');
-
-  // Navigate: pop to root, push genre, push subcat
-  while (layerStack.length > 1) popLayer(false);
-  if (layerStack[0].type !== 'root') {
-    // Shouldn't happen but handle
-  }
-  pushLayer({ type:'genre', genreIdx }, false);
-  pushLayer({ type:'subcat', genreIdx, subcatIdx }, true);
-
-  // Scroll to album in subcat
-  requestAnimationFrame(() => {
-    const albumIdx = sc.albums.indexOf(album);
-    if (albumIdx === -1) return;
-    const rH = window.innerWidth < 600 ? 60 : (window.innerWidth >= 1200 ? 68 : 64);
-    const viewport = layerStack[layerStack.length - 1].element.querySelector('.scroll-viewport');
-    if (viewport) viewport.scrollTop = albumIdx * rH;
+  document.querySelectorAll('.search-container input').forEach(el=>el.value='');
+  while(layerStack.length>1)popLayer(false);
+  pushLayer({type:'genre',genreIdx:gi},false);
+  pushLayer({type:'subcat',genreIdx:gi,subcatIdx:si},true);
+  requestAnimationFrame(()=>{
+    const idx=sc.albums.indexOf(album);
+    if(idx===-1)return;
+    const vp=layerStack[layerStack.length-1].element.querySelector('.scroll-viewport');
+    if(vp)vp.scrollTop=idx*rowHeight();
   });
 }
 
-/* ── KEYBOARD NAV (global) ───────────────────────────────── */
-document.addEventListener('keydown', e => {
-  // Escape: pop top layer or clear search
-  if (e.key === 'Escape') {
-    if (searchQuery) {
-      setSearch('');
-      document.querySelectorAll('.search-container input').forEach(el => el.value = '');
-    } else if (layerStack.length > 1) {
-      popLayer();
-    }
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    if(searchQuery){setSearch('');document.querySelectorAll('.search-container input').forEach(el=>el.value='')}
+    else if(layerStack.length>1)popLayer();
   }
-  // Backspace when not in input: pop layer
-  if (e.key === 'Backspace' && document.activeElement.tagName !== 'INPUT') {
-    if (layerStack.length > 1) { e.preventDefault(); popLayer(); }
-  }
+  if(e.key==='Backspace'&&document.activeElement.tagName!=='INPUT'&&layerStack.length>1){e.preventDefault();popLayer()}
 });
 
-/* ── UTILITIES ───────────────────────────────────────────── */
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function shorten(s){return s.length>20?s.slice(0,18)+'…':s}
 
-/* ── BOOT ────────────────────────────────────────────────── */
-async function boot() {
+async function boot(){
   await parseAlbums();
-
-  if (!taxonomy.length) {
-    document.getElementById('layer-host').innerHTML =
-      '<div style="padding:40px;font-family:monospace;color:#ff9090;">Failed to parse albums.md. Check console.</div>';
-    return;
-  }
-
-  // Push root layer (no animation on first load)
-  pushLayer({ type: 'root' }, false);
-
-  // Restore saved navigation state
-  const saved = store.get('navStack', []);
-  for (let i = 1; i < saved.length; i++) {
-    const s = saved[i];
-    if (s.type === 'genre' && taxonomy[s.genreIdx]) {
-      pushLayer({ type:'genre', genreIdx: s.genreIdx }, false);
-    } else if (s.type === 'subcat' && taxonomy[s.genreIdx] && taxonomy[s.genreIdx].subcats[s.subcatIdx]) {
-      pushLayer({ type:'subcat', genreIdx: s.genreIdx, subcatIdx: s.subcatIdx }, false);
-    }
+  if(!taxonomy.length){document.getElementById('layer-host').innerHTML='<div style="padding:40px;font-family:monospace;color:red">Failed to parse albums.md</div>';return}
+  pushLayer({type:'root'},false);
+  const saved=store.get('navStack',[]);
+  for(let i=1;i<saved.length;i++){
+    const s=saved[i];
+    if(s.type==='genre'&&taxonomy[s.genreIdx])pushLayer({type:'genre',genreIdx:s.genreIdx},false);
+    else if(s.type==='subcat'&&taxonomy[s.genreIdx]&&taxonomy[s.genreIdx].subcats[s.subcatIdx])
+      pushLayer({type:'subcat',genreIdx:s.genreIdx,subcatIdx:s.subcatIdx},false);
   }
 }
-
 boot();
 </script>
 </body>
